@@ -1,6 +1,6 @@
 {
   "scripts": {
-  "test": "jest"
+  "test": "npx jest"
   },
   "name": "atividade-estruturacao-de-pipelines",
   "version": "1.0.0",
