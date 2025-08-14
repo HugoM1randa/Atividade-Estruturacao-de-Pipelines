@@ -1,0 +1,23 @@
+{
+  "scripts": {
+  "test": "jest"
+  },
+  "name": "atividade-estruturacao-de-pipelines",
+  "version": "1.0.0",
+  "main": "index.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/HugoM1randa/Atividade-Estruturacao-de-Pipelines.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/HugoM1randa/Atividade-Estruturacao-de-Pipelines/issues"
+  },
+  "homepage": "https://github.com/HugoM1randa/Atividade-Estruturacao-de-Pipelines#readme",
+  "description": "",
+  "devDependencies": {
+    "jest": "^30.0.5"
+  }
+}

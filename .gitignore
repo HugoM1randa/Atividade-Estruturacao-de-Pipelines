@@ -1,0 +1,17 @@
+.env
+.env.local
+.env.*.local
+*.env
+*.key
+*.pem
+*.crt
+*.log
+*.sqlite
+*.db
+.DS_Store
+*.secret
+*.bak
+*.tmp
+.vscode/
+.idea/
+*.swp
