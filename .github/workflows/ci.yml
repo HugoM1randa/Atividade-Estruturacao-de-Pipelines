@@ -69,14 +69,17 @@ jobs:
       - name: Deploy
         id: deploy
         run: ./deploy.sh
-        
+
+      # --- NOTIFY SLEUTH (via API REST) ---
       - name: Notify Sleuth
         if: ${{ success() && steps.deploy.outcome == 'success' }}
-        uses: sleuth-io/sleuth-action@v1
-        with:
-          api_key: ${{ secrets.SLEUTH_API_KEY }}
-          environment: production
-          # opcional:
-          # revision: ${{ github.sha }}
-          # repo: ${{ github.repository }}
-          # deployed_at: ${{ github.event.head_commit.timestamp }}
+        run: |
+          curl -X POST "https://app.sleuth.io/api/1/deployments" \
+            -H "Authorization: Bearer ${{ secrets.SLEUTH_API_KEY }}" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "environment": "production",
+              "revision": "'${{ github.sha }}'",
+              "repo": "'${{ github.repository }}'",
+              "deployed_at": "'${{ github.event.head_commit.timestamp }}'"
+            }'
