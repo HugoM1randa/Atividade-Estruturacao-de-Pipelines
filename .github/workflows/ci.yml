@@ -19,12 +19,12 @@ jobs:
     environment: production   # usa o ambiente “production” do GitHub (opcional, mas recomendado)
     steps:
       - name: Checkout (full history p/ métricas)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3
         with:
           fetch-depth: 0   # importante para ferramentas que calculam lead time (histórico completo)
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v3
         with:
           dotnet-version: '8.0.x'   # ajuste a versão do seu projeto
 
