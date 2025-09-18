@@ -1,38 +1,69 @@
-name: CI + Deploy
+name: Deploy to Production
 
 on:
   push:
-    branches:
-      - main
+    branches: [ main ]
+  workflow_dispatch:
+
+# evita dois deploys concorrentes para o mesmo ambiente
+concurrency:
+  group: prod-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
 
 jobs:
-  build-test-deploy:
+  deploy:
     runs-on: ubuntu-latest
-
+    environment: production   # usa o ambiente “production” do GitHub (opcional, mas recomendado)
     steps:
-      - name: Checkout código
+      - name: Checkout (full history p/ métricas)
         uses: actions/checkout@v4
-
-      - name: Configurar Node.js
-        uses: actions/setup-node@v4
         with:
-          node-version: 20
-          cache: npm
+          fetch-depth: 0   # importante para ferramentas que calculam lead time (histórico completo)
 
-      - name: Instalar dependências
-        run: npm ci
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'   # ajuste a versão do seu projeto
 
-      - name: Corrigir permissões do Jest
-        run: chmod +x ./node_modules/.bin/jest
+      - name: Restore
+        run: dotnet restore
 
-      - name: Rodar testes
-        run: npx jest --ci --runInBand
+      - name: Build (Release)
+        run: dotnet build --configuration Release --no-restore
 
-      - name: Instalar Vercel CLI
-        run: npm install -g vercel
+      - name: Test
+        run: dotnet test --configuration Release --no-build --verbosity normal
 
-      - name: Linkar projeto Vercel
-        run: vercel link --yes --token ${{ secrets.VERCEL_TOKEN }}
+      # --- DEPLOY ---
+      # Se você usa script próprio:
+      - name: Make deploy script executable
+        run: chmod +x ./deploy.sh
 
-      - name: Deploy no Vercel
-        run: vercel --prod --token ${{ secrets.VERCEL_TOKEN }} --confirm
+      - name: Deploy
+        id: deploy
+        run: ./deploy.sh
+
+      # Se você usa Azure WebApp, troque o bloco acima por algo como:
+      # - name: Publish
+      #   run: dotnet publish ./src/SeuProjeto.csproj -c Release -o ./out
+      # - name: Deploy to Azure WebApp
+      #   uses: azure/webapps-deploy@v3
+      #   with:
+      #     app-name: SEU_WEBAPP
+      #     publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+      #     package: ./out
+
+      # --- SLEUTH NOTIFY ---
+      # Só notifica se o deploy tiver sido bem-sucedido
+      - name: Notify Sleuth
+        if: ${{ success() && steps.deploy.outcome == 'success' }}
+        with:
+          api_key: ${{ secrets.SLEUTH_API_KEY }}
+          environment: production                 # precisa bater com o ambiente definido no Sleuth
+          # opcional, mas útil:
+          # revision: ${{ github.sha }}
+          # repo: ${{ github.repository }}
+          # deployed_at: ${{ github.event.head_commit.timestamp }}
