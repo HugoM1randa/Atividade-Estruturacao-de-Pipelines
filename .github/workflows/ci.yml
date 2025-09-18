@@ -1,7 +1,9 @@
-name: Deploy to Production
+name: CI/CD Pipeline
 
 on:
   push:
+    branches: [ main ]
+  pull_request:
     branches: [ main ]
   workflow_dispatch:
 
@@ -14,19 +16,43 @@ permissions:
   contents: read
 
 jobs:
+  # --- JOB DE TESTES NODE.JS ---
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Corrigir permissões do Jest
+        run: chmod +x ./node_modules/.bin/jest
+
+      - name: Rodar testes
+        run: npx jest --ci --runInBand
+
+  # --- JOB DE DEPLOY .NET ---
   deploy:
     runs-on: ubuntu-latest
-    environment: production   # usa o ambiente “production” do GitHub (opcional, mas recomendado)
+    needs: test   # só roda deploy se os testes passarem
+    environment: production
     steps:
       - name: Checkout (full history p/ métricas)
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
-          fetch-depth: 0   # importante para ferramentas que calculam lead time (histórico completo)
+          fetch-depth: 0
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v3
+        uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '8.0.x'   # ajuste a versão do seu projeto
+          dotnet-version: '8.0.x'
 
       - name: Restore
         run: dotnet restore
@@ -37,24 +63,20 @@ jobs:
       - name: Test
         run: dotnet test --configuration Release --no-build --verbosity normal
 
-      # --- DEPLOY ---
-      # Se você usa script próprio:
       - name: Make deploy script executable
         run: chmod +x ./deploy.sh
 
       - name: Deploy
         id: deploy
         run: ./deploy.sh
-
-      # --- SLEUTH NOTIFY ---
-      # Só notifica se o deploy tiver sido bem-sucedido
+        
       - name: Notify Sleuth
         if: ${{ success() && steps.deploy.outcome == 'success' }}
-        uses: sleuth-io/sleuth-action@v3
+        uses: sleuth-io/sleuth-action@v1
         with:
-          api_key: ${{ secrets.SLEUTH_API_KEY }}   # crie esse secret no repo/org
-          environment: Pessoal                  # precisa bater com o ambiente definido no Sleuth
-          # opcional, mas útil:
+          api_key: ${{ secrets.SLEUTH_API_KEY }}
+          environment: production
+          # opcional:
           # revision: ${{ github.sha }}
           # repo: ${{ github.repository }}
           # deployed_at: ${{ github.event.head_commit.timestamp }}
