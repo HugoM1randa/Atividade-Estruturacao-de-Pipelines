@@ -1,65 +1,48 @@
-name: CD - Deploy Vercel
+name: CI
 description: >
-  Continuous Delivery to Build and Deploy on Vercel
-on:
-  workflow_run:
-    workflows: ["CI"]
-    types:
-      - completed
-
-permissions:
-  contents: read
-  actions: read
+  Continuous Integration to Tests, Build, Checkout
+# Executa o workflow em push e pull request
+on: [push, pull_request]
 
 jobs:
-  deploy:
-    name: Deploy para Vercel
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+  ci-cd:
+    name: CI Pipeline
     runs-on: ubuntu-latest
     env:
       TZ: America/Sao_Paulo
-      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 
     steps:
-      - name: Baixar artifact do CI (dist)
-        uses: actions/download-artifact@v4
+      # 1. Fazer checkout do código
+      - name: Checkout do código
+        uses: actions/checkout@v4
+
+      # 2. Configurar Node.js
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      # 3. Instalar dependências
+      - name: Instalar dependências
+        run: npm install
+
+      # 4. Executar testes
+      - name: Executar testes
+        run: npm test
+      
+
+      # 5. Build do projeto
+      - name: Build do projeto
+        run: |
+          echo "Criando build do projeto..."
+          mkdir -p dist
+          cp -r src dist/
+          cp index.html dist/
+          echo "Build concluído!"
+      # 6. Publicar artifact do build
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
         with:
           name: dist
           path: dist
-          run-id: ${{ github.event.workflow_run.id }}
-          github-token: ${{ github.token }}
-
-      - name: Limpar link anterior (.vercel)
-        run: rm -rf .vercel
-
-      - name: Debug Vercel Context (Before Link)
-        run: |
-          echo "Vercel CLI version:" && npx vercel --version
-          echo "whoami:" && npx vercel whoami --token "$VERCEL_TOKEN" || echo "whoami failed"
-
-      - name: Link Vercel Project
-        run: |
-          npx vercel link --yes --project starting-ci-cd --token "$VERCEL_TOKEN"
-
-      - name: Debug Vercel Context (After Link)
-        run: |
-          echo "conteudo de .vercel/project.json:" && cat .vercel/project.json || echo "project.json not found"
-          echo "ls -la .vercel:" && ls -la .vercel || echo ".vercel directory not found"
-
-      - name: Vercel Pull (Preview)
-        if: ${{ github.event.workflow_run.head_branch != 'main' || github.event.workflow_run.event == 'pull_request' }}
-        run: npx vercel pull --yes --environment=preview --token "$VERCEL_TOKEN"
-
-      - name: Deploy Preview na Vercel
-        if: ${{ github.event.workflow_run.head_branch != 'main' || github.event.workflow_run.event == 'pull_request' }}
-        run: npx vercel deploy dist --token "$VERCEL_TOKEN"
-
-      - name: Vercel Pull (Production)
-        if: ${{ github.event.workflow_run.head_branch == 'main' }}
-        run: npx vercel pull --yes --environment=production --token "$VERCEL_TOKEN"
-
-      - name: Deploy para Produção na Vercel
-        if: ${{ github.event.workflow_run.head_branch == 'main' }}
-        run: npx vercel deploy dist --prod --token "$VERCEL_TOKEN"
