@@ -19,7 +19,7 @@ jobs:
     environment: production   # usa o ambiente “production” do GitHub (opcional, mas recomendado)
     steps:
       - name: Checkout (full history p/ métricas)
-        uses: actions/checkout@main
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0   # importante para ferramentas que calculam lead time (histórico completo)
 
