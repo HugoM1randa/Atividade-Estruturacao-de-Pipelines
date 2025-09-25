@@ -28,21 +28,17 @@ jobs:
         with:
           dotnet-version: '8.0.x'   # ajuste a versão do seu projeto
 
-      # --- RESTORE ---
       - name: Restore
-        run: dotnet restore ./SeuProjeto.sln   # ou ./src/SeuProjeto.csproj
+        run: dotnet restore
 
-      # --- BUILD ---
       - name: Build (Release)
-        run: dotnet build ./SeuProjeto.sln --configuration Release --no-restore
-        # se preferir, pode apontar para o .csproj específico em vez do .sln
+        run: dotnet build --configuration Release --no-restore
 
-      # --- TEST ---
       - name: Test
-        run: dotnet test ./tests/SeuProjeto.Tests.csproj --configuration Release --no-build --verbosity normal
-        # ajuste o caminho para o projeto de testes
+        run: dotnet test --configuration Release --no-build --verbosity normal
 
-      # --- DEPLOY (script próprio) ---
+      # --- DEPLOY ---
+      # Se você usa script próprio:
       - name: Make deploy script executable
         run: chmod +x ./deploy.sh
 
@@ -50,7 +46,7 @@ jobs:
         id: deploy
         run: ./deploy.sh
 
-      # --- OPÇÃO: DEPLOY AZURE (se for usar WebApp) ---
+      # Se você usa Azure WebApp, troque o bloco acima por algo como:
       # - name: Publish
       #   run: dotnet publish ./src/SeuProjeto.csproj -c Release -o ./out
       # - name: Deploy to Azure WebApp
@@ -61,12 +57,14 @@ jobs:
       #     package: ./out
 
       # --- SLEUTH NOTIFY ---
+      # Só notifica se o deploy tiver sido bem-sucedido
       - name: Notify Sleuth
         if: ${{ success() && steps.deploy.outcome == 'success' }}
-        uses: sleuth-io/sleuth-action@main   # não existe v1, use main ou SHA
+        uses: sleuth-io/sleuth-action@main
         with:
           api_key: ${{ secrets.SLEUTH_API_KEY }}
-          environment: production
-          revision: ${{ github.sha }}
-          repo: ${{ github.repository }}
-          deployed_at: ${{ github.event.head_commit.timestamp }}
+          environment: production                 # precisa bater com o ambiente definido no Sleuth
+          # opcional, mas útil:
+          # revision: ${{ github.sha }}
+          # repo: ${{ github.repository }}
+          # deployed_at: ${{ github.event.head_commit.timestamp }}
