@@ -1,70 +1,65 @@
-name: Deploy to Production
-
+name: CD - Deploy Vercel
+description: >
+  Continuous Delivery to Build and Deploy on Vercel
 on:
-  push:
-    branches: [ main ]
-  workflow_dispatch:
-
-# evita dois deploys concorrentes para o mesmo ambiente
-concurrency:
-  group: prod-${{ github.ref }}
-  cancel-in-progress: false
+  workflow_run:
+    workflows: ["CI"]
+    types:
+      - completed
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
   deploy:
+    name: Deploy para Vercel
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
-    environment: production   # usa o ambiente “production” do GitHub (opcional, mas recomendado)
+    env:
+      TZ: America/Sao_Paulo
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
     steps:
-      - name: Checkout (full history p/ métricas)
-        uses: actions/checkout@v4
+      - name: Baixar artifact do CI (dist)
+        uses: actions/download-artifact@v4
         with:
-          fetch-depth: 0   # importante para ferramentas que calculam lead time (histórico completo)
+          name: dist
+          path: dist
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ github.token }}
 
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '8.0.x'   # ajuste a versão do seu projeto
+      - name: Limpar link anterior (.vercel)
+        run: rm -rf .vercel
 
-      - name: Restore
-        run: dotnet restore
+      - name: Debug Vercel Context (Before Link)
+        run: |
+          echo "Vercel CLI version:" && npx vercel --version
+          echo "whoami:" && npx vercel whoami --token "$VERCEL_TOKEN" || echo "whoami failed"
 
-      - name: Build (Release)
-        run: dotnet build --configuration Release --no-restore
+      - name: Link Vercel Project
+        run: |
+          npx vercel link --yes --project starting-ci-cd --token "$VERCEL_TOKEN"
 
-      - name: Test
-        run: dotnet test --configuration Release --no-build --verbosity normal
+      - name: Debug Vercel Context (After Link)
+        run: |
+          echo "conteudo de .vercel/project.json:" && cat .vercel/project.json || echo "project.json not found"
+          echo "ls -la .vercel:" && ls -la .vercel || echo ".vercel directory not found"
 
-      # --- DEPLOY ---
-      # Se você usa script próprio:
-      - name: Make deploy script executable
-        run: chmod +x ./deploy.sh
+      - name: Vercel Pull (Preview)
+        if: ${{ github.event.workflow_run.head_branch != 'main' || github.event.workflow_run.event == 'pull_request' }}
+        run: npx vercel pull --yes --environment=preview --token "$VERCEL_TOKEN"
 
-      - name: Deploy
-        id: deploy
-        run: ./deploy.sh
+      - name: Deploy Preview na Vercel
+        if: ${{ github.event.workflow_run.head_branch != 'main' || github.event.workflow_run.event == 'pull_request' }}
+        run: npx vercel deploy dist --token "$VERCEL_TOKEN"
 
-      # Se você usa Azure WebApp, troque o bloco acima por algo como:
-      # - name: Publish
-      #   run: dotnet publish ./src/SeuProjeto.csproj -c Release -o ./out
-      # - name: Deploy to Azure WebApp
-      #   uses: azure/webapps-deploy@v3
-      #   with:
-      #     app-name: SEU_WEBAPP
-      #     publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
-      #     package: ./out
+      - name: Vercel Pull (Production)
+        if: ${{ github.event.workflow_run.head_branch == 'main' }}
+        run: npx vercel pull --yes --environment=production --token "$VERCEL_TOKEN"
 
-      # --- SLEUTH NOTIFY ---
-      # Só notifica se o deploy tiver sido bem-sucedido
-      - name: Notify Sleuth
-        if: ${{ success() && steps.deploy.outcome == 'success' }}
-        uses: sleuth-io/sleuth-action@v1
-        with:
-          api_key: ${{ secrets.SLEUTH_API_KEY }}
-          environment: production                 # precisa bater com o ambiente definido no Sleuth
-          # opcional, mas útil:
-          # revision: ${{ github.sha }}
-          # repo: ${{ github.repository }}
-          # deployed_at: ${{ github.event.head_commit.timestamp }}
+      - name: Deploy para Produção na Vercel
+        if: ${{ github.event.workflow_run.head_branch == 'main' }}
+        run: npx vercel deploy dist --prod --token "$VERCEL_TOKEN"
